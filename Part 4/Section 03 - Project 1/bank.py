@@ -1,11 +1,22 @@
-import numbers
-from datetime import timedelta
 import itertools
+import numbers
+from datetime import timedelta, datetime
+from collections import namedtuple
+
+        
+Confirmation = namedtuple('Confirmation', 'account_number, transaction_code, transaction_id, time_utc, time')
+
 
 class Account:
 
-    interest_rate: float = 0.005
     transaction_counter = itertools.count(100)
+    _interest_rate: float = 0.5
+    _transaction_codes = {
+        'deposit': 'D',
+        'withdraw': 'W',
+        'interest': 'I',
+        'rejected': 'X'
+    }
 
     def __init__(self, account_number: int, first_name: str, last_name: str,
                 timezone: TimeZone | None = None,  initial_balance: float = 0):
@@ -55,8 +66,19 @@ class Account:
         if not isinstance(value, TimeZone):
             raise ValueError("Timezone must be a valid TimeZone object")
         self._timezone = value
+
+    @classmethod
+    def get_interest_rate(cls):
+        return cls._interest_rate
+    
+    @classmethod
+    def set_interest_rate(cls, value):
+        if not isinstance(value, numbers.Real):
+            raise ValueError("Interest rate must be a real number")
+        if value < 0:
+            raise ValueError("Interest rate cannot be negative")
+        cls._interest_rate = value
         
-   
 
     @staticmethod
     def validate_name(value, field_title):
@@ -66,33 +88,31 @@ class Account:
             raise ValueError(f"{field_title} cannot be empty")
         return value.strip()
     
-    def withdraw(self, amount):
-        self.balance = self.balance - amount
-        transaction_id = next(Account.transaction_counter)
-        return transaction_id
+    def make_transaction(self):
+        return self.generate_confirmation_code("dummy")
+        
     
-    def deposit(self, amount):
-        self.balance = self.balance + amount 
-        transaction_id = next(Account.transaction_counter)
-        return transaction_id
+    def generate_confirmation_code(self, transaction_code: str):
+        dt_str = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        return f"{transaction_code}-{self.account_number}-{dt_str}-{next(Account.transaction_counter)}"
     
-    # @property
-    # def balance(self):
-    #     return self.balance + self.calculate_interest()
-
-    def pay_interest(self):
-        return self.balance * Account.monthly_interest_rate
-    
-    def parse_confirmation_code():
-        ...
-
-    
-    # def commit(self):
-    #     """ 
-    #     - the account number, transaction code (D, W, etc), datetime (UTC format), date time (in whatever timezone is specified in te argument, but more human readable), the transaction ID
-    #     - make it so it is a nicely structured object (so can use dotted notation to access these three attributes)
-    #     - I purposefully made it so the desired timezone is passed as an argument. Can you figure out why? (hint: does this method require any information from any instance?)
-    #     """
+    @staticmethod
+    def parse_confirmation_code(confirmation_code: str, preferred_time_zone: TimeZone | None = None):
+        parts = confirmation_code.split('-')
+        if len(parts) != 4:
+            raise ValueError("Invalid confirmation code")
+        transaction_code, account_number, raw_dt_utc, transaction_id = parts
+        try:
+            dt_utc = datetime.strptime(raw_dt_utc, "%Y%m%d%H%M%S")
+        except ValueError as ex:
+            raise ValueError("Invalid transaction datetime") from ex
+        if preferred_time_zone is None:
+            preferred_time_zone = TimeZone('UTC', 0, 0)
+        if not isinstance(preferred_time_zone, TimeZone):
+            raise ValueError("Invalid TimeZone specified")
+        dt_preferred = dt_utc + preferred_time_zone.offset
+        dt_preferred_str = f"{dt_preferred.isoformat()} ({preferred_time_zone.name})"
+        return Confirmation(account_number, transaction_code, transaction_id, dt_utc.isoformat(), dt_preferred_str)
 
 
 class TimeZone:
