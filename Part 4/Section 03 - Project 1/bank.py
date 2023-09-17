@@ -78,8 +78,41 @@ class Account:
         if value < 0:
             raise ValueError("Interest rate cannot be negative")
         cls._interest_rate = value
-        
 
+    def deposit(self, value: float) -> Confirmation:
+        Account.validate_real_number(value, 0.01)
+        transaction_code = Account._transaction_codes['deposit']
+        conf_code = self.generate_confirmation_code(transaction_code)
+        self._balance += value
+        return conf_code
+    
+    def withdraw(self, value: float) -> Confirmation:
+        accepted = False
+        Account.validate_real_number(value, 0.01)
+        if self.balance - value < 0:
+            transaction_code = Account._transaction_codes['rejected']
+        else:
+            transaction_code = Account._transaction_codes['withdraw']
+            accepted = True
+        conf_code = self.generate_confirmation_code(transaction_code)
+        if accepted:
+            self._balance -= value
+        return conf_code
+    
+    def pay_interest(self) -> Confirmation:
+        interest = self.balance * Account.get_interest_rate() / 100
+        conf_code = self.generate_confirmation_code(Account._transaction_codes['interest'])
+        self._balance += interest
+        return conf_code
+    
+    @staticmethod
+    def validate_real_number(value, min_value=None):
+        if not isinstance(value, numbers.Real):
+            raise ValueError("Value must be a real number")
+        if min_value is not None and value < min_value:
+            raise ValueError(f"Value must be at least {min_value}")
+        return value
+        
     @staticmethod
     def validate_name(value, field_title):
         if not isinstance(value, str):
@@ -87,10 +120,6 @@ class Account:
         if len(value.strip()) == 0:
             raise ValueError(f"{field_title} cannot be empty")
         return value.strip()
-    
-    def make_transaction(self):
-        return self.generate_confirmation_code("dummy")
-        
     
     def generate_confirmation_code(self, transaction_code: str):
         dt_str = datetime.utcnow().strftime("%Y%m%d%H%M%S")
