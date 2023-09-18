@@ -26,7 +26,7 @@ class Account:
         if timezone is None:
             timezone = TimeZone('UTC', 0, 0)
         self.timezone = timezone
-        self._balance = initial_balance
+        self._balance = Account.validate_real_number(initial_balance, 0)
 
 
     @property
